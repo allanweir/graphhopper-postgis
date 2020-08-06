@@ -18,14 +18,19 @@
 package com.graphhopper.reader.postgis;
 
 import com.graphhopper.GraphHopper;
+import com.graphhopper.GraphHopperConfig;
+import com.graphhopper.json.geo.JsonFeatureCollection;
 import com.graphhopper.reader.DataReader;
 import com.graphhopper.reader.osm.GraphHopperOSM;
 import com.graphhopper.storage.GraphHopperStorage;
-import com.graphhopper.util.CmdArgs;
+import static com.graphhopper.util.Helper.getMemInfo;
+import java.io.IOException;
 
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Modified version of GraphHopper to optimize working with Postgis
@@ -35,22 +40,30 @@ import java.util.Map;
  */
 public class GraphHopperPostgis extends GraphHopperOSM {
 
+    private final Logger logger = LoggerFactory.getLogger(getClass());
+    
     private final HashSet<OSMPostgisReader.EdgeAddedListener> edgeAddedListeners = new HashSet<>();
     private final Map<String, String> postgisParams = new HashMap<>();
-
-    @Override
-    public GraphHopper init(CmdArgs args) {
-
+    
+//    private final GraphHopperConfig ghConfig;
+    
+    public GraphHopperPostgis(GraphHopperConfig configuration, JsonFeatureCollection landmarkSplittingFeatureCollection) {
+        super.init(configuration);
+        
+        super.setDataReaderFile(configuration.getString("postgis.table", ""));
+//        this.ghConfig = configuration;
+              
+        Integer port = configuration.getInt("postgis.port", 0);
         postgisParams.put("dbtype", "postgis");
-        postgisParams.put("host", args.get("db.host", ""));
-        postgisParams.put("port", args.get("db.port", "5432"));
-        postgisParams.put("schema", args.get("db.schema", ""));
-        postgisParams.put("database", args.get("db.database", ""));
-        postgisParams.put("user", args.get("db.user", ""));
-        postgisParams.put("passwd", args.get("db.passwd", ""));
-        postgisParams.put("tags_to_copy", args.get("db.tags_to_copy", ""));
-
-        return super.init(args);
+        postgisParams.put("host", configuration.getString("postgis.host", ""));
+        postgisParams.put("port", port.toString());
+        postgisParams.put("schema", configuration.getString("postgis.schema", ""));
+        postgisParams.put("database", configuration.getString("postgis.database", ""));
+        postgisParams.put("user", configuration.getString("postgis.user", ""));
+        postgisParams.put("passwd", configuration.getString("postgis.password", ""));
+        postgisParams.put("tags_to_copy", configuration.getString("postgis.tags_to_copy", ""));
+        
+//        this.setDataReaderFile("POSTGIS_READER");
     }
 
     @Override
@@ -59,8 +72,17 @@ public class GraphHopperPostgis extends GraphHopperOSM {
         for (OSMPostgisReader.EdgeAddedListener l : edgeAddedListeners) {
             reader.addListener(l);
         }
+        
         return initDataReader(reader);
     }
+    
+//    @Override
+//    protected DataReader importData() throws IOException {
+//        DataReader reader = createReader(ghStorage);
+//        logger.info("using " + ghStorage.toString() + ", memory:" + getMemInfo());
+//        reader.readGraph();
+//        return reader;
+//    }
 
     // TODO do we need the EdgeAddedListener?
     public void addListener(OSMPostgisReader.EdgeAddedListener l) {

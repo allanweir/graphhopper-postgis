@@ -125,7 +125,8 @@ public abstract class PostgisReader implements DataReader {
 
     protected DataStore openPostGisStore() {
         try {
-            LOGGER.info("Opening DB connection to " + this.postgisParams.get("dbtype") + " " + this.postgisParams.get("host") + ":" + this.postgisParams.get("port") + " to database " + this.postgisParams.get("database") + " schema " + this.postgisParams.get("schema"));
+            LOGGER.info("Opening DB connection to " + this.postgisParams.get("dbtype") + " " + this.postgisParams.get("host") + ":" + this.postgisParams.get("port").toString() + " to database " + this.postgisParams.get("database") + " schema " + this.postgisParams.get("schema"));
+            
             DataStore ds = DataStoreFinder.getDataStore(this.postgisParams);
             if (ds == null)
                 throw new IllegalArgumentException("Error Connecting to Database ");

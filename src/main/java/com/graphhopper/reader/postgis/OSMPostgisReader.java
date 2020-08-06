@@ -334,29 +334,29 @@ public class OSMPostgisReader extends PostgisReader {
         }
 
         // read oneway
-        Object oneway = road.getAttribute("oneway");
-        if (oneway != null) {
-            // Geofabrik is using an odd convention for oneway field in
-            // shapefile.
-            // We map back to the standard convention so that tag can be dealt
-            // with correctly by the flag encoder.
-            String val = toLowerCase(oneway.toString().trim());
-            if (val.equals("b")) {
-                // both ways
-                val = "no";
-            } else if (val.equals("t")) {
-                // one way against the direction of digitisation
-                val = "-1";
-            } else if (val.equals("f")) {
-                // one way Forward in the direction of digitisation
-                val = "yes";
-            } else {
-                throw new RuntimeException("Unrecognised value of oneway field \"" + val
-                        + "\" found in road with OSM id " + id);
-            }
-
-            way.setTag("oneway", val);
-        }
+//        Object oneway = road.getAttribute("oneway");
+//        if (oneway != null) {
+//            // Geofabrik is using an odd convention for oneway field in
+//            // shapefile.
+//            // We map back to the standard convention so that tag can be dealt
+//            // with correctly by the flag encoder.
+//            String val = toLowerCase(oneway.toString().trim());
+//            if (val.equals("b")) {
+//                // both ways
+//                val = "no";
+//            } else if (val.equals("t")) {
+//                // one way against the direction of digitisation
+//                val = "-1";
+//            } else if (val.equals("f")) {
+//                // one way Forward in the direction of digitisation
+//                val = "yes";
+//            } else {
+//                throw new RuntimeException("Unrecognised value of oneway field \"" + val
+//                        + "\" found in road with OSM id " + id);
+//            }
+//
+//            way.setTag("oneway", val);
+//        }
 
         // Process the flags using the encoders
         EncodingManager.AcceptWay acceptWay = new EncodingManager.AcceptWay();
