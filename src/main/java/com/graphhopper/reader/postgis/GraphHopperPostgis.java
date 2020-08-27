@@ -17,17 +17,13 @@
  */
 package com.graphhopper.reader.postgis;
 
-import com.graphhopper.GraphHopper;
 import com.graphhopper.GraphHopperConfig;
 import com.graphhopper.json.geo.JsonFeatureCollection;
 import com.graphhopper.reader.DataReader;
 import com.graphhopper.reader.osm.GraphHopperOSM;
 import com.graphhopper.storage.GraphHopperStorage;
-import static com.graphhopper.util.Helper.getMemInfo;
-import java.io.IOException;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,19 +35,13 @@ import org.slf4j.LoggerFactory;
  * @author Robin Boldt
  */
 public class GraphHopperPostgis extends GraphHopperOSM {
-
-    private final Logger logger = LoggerFactory.getLogger(getClass());
     
-    private final HashSet<OSMPostgisReader.EdgeAddedListener> edgeAddedListeners = new HashSet<>();
     private final Map<String, String> postgisParams = new HashMap<>();
-    
-//    private final GraphHopperConfig ghConfig;
     
     public GraphHopperPostgis(GraphHopperConfig configuration, JsonFeatureCollection landmarkSplittingFeatureCollection) {
         super.init(configuration);
         
         super.setDataReaderFile(configuration.getString("postgis.table", ""));
-//        this.ghConfig = configuration;
               
         Integer port = configuration.getInt("postgis.port", 0);
         postgisParams.put("dbtype", "postgis");
@@ -62,17 +52,11 @@ public class GraphHopperPostgis extends GraphHopperOSM {
         postgisParams.put("user", configuration.getString("postgis.user", ""));
         postgisParams.put("passwd", configuration.getString("postgis.password", ""));
         postgisParams.put("tags_to_copy", configuration.getString("postgis.tags_to_copy", ""));
-        
-//        this.setDataReaderFile("POSTGIS_READER");
     }
 
     @Override
     protected DataReader createReader(GraphHopperStorage ghStorage) {
-        OSMPostgisReader reader = new OSMPostgisReader(ghStorage, postgisParams);
-        for (OSMPostgisReader.EdgeAddedListener l : edgeAddedListeners) {
-            reader.addListener(l);
-        }
-        
+        OSMPostgisReaderNew reader = new OSMPostgisReaderNew(ghStorage, postgisParams);
         return initDataReader(reader);
     }
     
@@ -83,10 +67,5 @@ public class GraphHopperPostgis extends GraphHopperOSM {
 //        reader.readGraph();
 //        return reader;
 //    }
-
-    // TODO do we need the EdgeAddedListener?
-    public void addListener(OSMPostgisReader.EdgeAddedListener l) {
-        edgeAddedListeners.add(l);
-    }
 
 }

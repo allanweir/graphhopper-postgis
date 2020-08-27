@@ -19,17 +19,23 @@ package com.graphhopper.reader.postgis;
 
 import com.graphhopper.coll.GHObjectIntHashMap;
 import com.graphhopper.reader.DataReader;
+import com.graphhopper.reader.PillarInfo;
 import com.graphhopper.reader.ReaderWay;
+import com.graphhopper.reader.dem.EdgeSampling;
 import com.graphhopper.reader.dem.ElevationProvider;
+import com.graphhopper.reader.dem.GraphElevationSmoothing;
 import com.graphhopper.routing.util.EncodingManager;
 import com.graphhopper.storage.GraphHopperStorage;
 import com.graphhopper.storage.IntsRef;
+import com.graphhopper.storage.NodeAccess;
 import com.graphhopper.util.DistanceCalc;
+import com.graphhopper.util.DistanceCalcEarth;
+import com.graphhopper.util.DouglasPeucker;
 import com.graphhopper.util.EdgeIteratorState;
 import com.graphhopper.util.Helper;
 import com.graphhopper.util.PointList;
 import com.graphhopper.util.shapes.GHPoint;
-import com.vividsolutions.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Coordinate;
 import org.geotools.data.DataStore;
 import org.geotools.feature.FeatureIterator;
 import org.opengis.feature.simple.SimpleFeature;
@@ -49,7 +55,7 @@ import static com.graphhopper.util.Helper.*;
  * @author Mario Basa
  * @author Robin Boldt
  */
-public class OSMPostgisReader extends PostgisReader {
+    public class OSMPostgisReader extends PostgisReader {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(OSMPostgisReader.class);
 
@@ -59,14 +65,30 @@ public class OSMPostgisReader extends PostgisReader {
     private final String[] tagsToCopy;
     private File roadsFile;
     private GHObjectIntHashMap<Coordinate> coordState = new GHObjectIntHashMap<>(1000, 0.7f);
-    private final DistanceCalc distCalc = DIST_EARTH;
-    private final HashSet<EdgeAddedListener> edgeAddedListeners = new HashSet<>();
+    private final DistanceCalc distCalc = DistanceCalcEarth.DIST_EARTH;
     private int nextNodeId = FIRST_NODE_ID;
     protected long zeroCounter = 0;
     private final IntsRef tempRelFlags;
+    
+    private final NodeAccess nodeAccess;
+    protected PillarInfo pillarInfo;
+    
+    private boolean smoothElevation = false;
+    private ElevationProvider eleProvider = ElevationProvider.NOOP;
+    
+//    private double[] elevations = {};
+    private List<Double> elevations = new ArrayList<>();
+    private boolean doSimplify = true;
+    private final DouglasPeucker simplifyAlgo = new DouglasPeucker();
+    private double longEdgeSamplingDistance = 0;
 
     public OSMPostgisReader(GraphHopperStorage ghStorage, Map<String, String> postgisParams) {
         super(ghStorage, postgisParams);
+        
+        this.nodeAccess = graph.getNodeAccess();
+        
+        this.pillarInfo = new PillarInfo(nodeAccess.is3D(), ghStorage.getDirectory());
+        
         String tmpTagsToCopy = postgisParams.get("tags_to_copy");
         if (tmpTagsToCopy == null || tmpTagsToCopy.isEmpty()) {
             this.tagsToCopy = new String[]{};
@@ -103,7 +125,10 @@ public class OSMPostgisReader extends PostgisReader {
                     tmpSet.clear();
                     for (int i = 0; i < points.length; i++) {
                         Coordinate c = points[i];
+                        c.z = getElevation(c.y, c.x);
                         c = roundCoordinate(c);
+
+//                        LOGGER.info("Pillar elevation " + String.valueOf(c.z));
 
                         // don't add the same coord twice for the same edge - happens with bad geometry, i.e.
                         // duplicate coords or a road which forms a circle (e.g. roundabout)
@@ -151,7 +176,7 @@ public class OSMPostgisReader extends PostgisReader {
 
         LOGGER.info("Number of junction points : " + (nextNodeId - FIRST_NODE_ID));
     }
-
+    
     @Override
     void processRoads() {
 
@@ -176,7 +201,7 @@ public class OSMPostgisReader extends PostgisReader {
                     // individual GraphHopper edges
                     // whenever we find a node in the list of points
                     Coordinate startTowerPnt = null;
-                    List<Coordinate> pillars = new ArrayList<Coordinate>();
+                    List<Coordinate> pillars = new ArrayList<>();
                     for (Coordinate point : points) {
                         point = roundCoordinate(point);
                         if (startTowerPnt == null) {
@@ -191,15 +216,24 @@ public class OSMPostgisReader extends PostgisReader {
                                 GHPoint estmCentre = new GHPoint(
                                         0.5 * (lat(startTowerPnt) + lat(point)),
                                         0.5 * (lng(startTowerPnt) + lng(point)));
-                                PointList pillarNodes = new PointList(pillars.size(), false);
-
+                                PointList pillarNodes = new PointList(pillars.size(), nodeAccess.is3D());
+                                
                                 for (Coordinate pillar : pillars) {
-                                    pillarNodes.add(lat(pillar), lng(pillar));
+                                    if (pillarNodes.is3D()) {
+                                        double lat = lat(pillar);
+                                        double lng = lng(pillar);
+                                        double ele = Helper.round6(this.getElevation(lat, lng));
+//                                        double ele = this.getElevation(lat, lng);
+//                                        this.elevations.add(ele);
+//                                        LOGGER.info("Pillar elevation " + String.valueOf(ele));
+                                        pillarNodes.add(lat, lng, ele);
+                                    } else {
+                                        pillarNodes.add(lat(pillar), lng(pillar));
+                                    }
                                 }
 
-                                double distance = getWayLength(startTowerPnt, pillars, point);
-                                addEdge(fromTowerNodeId, toTowerNodeId, road, distance, estmCentre,
-                                        pillarNodes);
+                                double distance = getWayLength(startTowerPnt, pillars, road, point);
+                                addEdge(fromTowerNodeId, toTowerNodeId, road, distance, estmCentre, pillarNodes);
                                 startTowerPnt = point;
                                 pillars.clear();
 
@@ -222,17 +256,35 @@ public class OSMPostgisReader extends PostgisReader {
             if (dataStore != null) {
                 dataStore.dispose();
             }
+            
+            
+            
+            this.elevations.forEach(l -> {
+                if (l > max) {
+                    max = l;
+                }
+                if (l < min) {
+                    min = l;
+                }
+           });
+           LOGGER.info("Min/max " + String.valueOf(min) + " " + String.valueOf(max));
         }
     }
+    
+    double min = 0;
+    double max = 0;
 
     @Override
     protected void finishReading() {
         this.coordState.clear();
         this.coordState = null;
+        this.pillarInfo.clear();
+        this.encodingManager.releaseParsers();
+        this.eleProvider.release();
         LOGGER.info("Finished reading. Zero Counter " + nf(zeroCounter) + " " + Helper.getMemInfo());
     }
 
-    protected double getWayLength(Coordinate start, List<Coordinate> pillars, Coordinate end) {
+    protected double getWayLength(Coordinate start, List<Coordinate> pillars, SimpleFeature road, Coordinate end) {
         double distance = 0;
 
         Coordinate previous = start;
@@ -254,6 +306,14 @@ public class OSMPostgisReader extends PostgisReader {
             distance = 1;
         }
 
+        double maxDistance = (Integer.MAX_VALUE - 1) / 1000d;
+        if (Double.isInfinite(distance) || distance > maxDistance) {
+            // Too large is very rare and often the wrong tagging. See #435 
+            // so we can avoid the complexity of splitting the way for now (new towernodes would be required, splitting up geometry etc)
+            LOGGER.warn("Bug in OSM or GraphHopper. Too big tower node distance " + distance + " reset to large value, osm way " + getOSMId(road));
+            distance = maxDistance;
+        }
+
         return distance;
     }
 
@@ -265,7 +325,13 @@ public class OSMPostgisReader extends PostgisReader {
 
     @Override
     public DataReader setElevationProvider(ElevationProvider ep) {
-        // Elevation not supported
+        if (eleProvider == null)
+            throw new IllegalStateException("Use the NOOP elevation provider instead of null or don't call setElevationProvider");
+
+        if (!nodeAccess.is3D() && ElevationProvider.NOOP != eleProvider)
+            throw new IllegalStateException("Make sure you graph accepts 3D data");
+
+        this.eleProvider = ep;
         return this;
     }
 
@@ -277,13 +343,14 @@ public class OSMPostgisReader extends PostgisReader {
 
     @Override
     public DataReader setWayPointMaxDistance(double wayPointMaxDistance) {
-        // TODO Auto-generated method stub
+        doSimplify = wayPointMaxDistance > 0;
+        simplifyAlgo.setMaxDistance(wayPointMaxDistance);
         return this;
     }
 
     @Override
     public DataReader setSmoothElevation(boolean smoothElevation) {
-        // TODO implement elevation smoothing for shape files
+        this.smoothElevation = smoothElevation;
         return this;
     }
 
@@ -292,25 +359,36 @@ public class OSMPostgisReader extends PostgisReader {
         return null;
     }
 
-    public static interface EdgeAddedListener {
-        void edgeAdded(ReaderWay way, EdgeIteratorState edge);
-    }
-
-    private void addEdge(int fromTower, int toTower, SimpleFeature road, double distance,
-                         GHPoint estmCentre, PointList pillarNodes) {
+    private void addEdge(int fromTower, int toTower, SimpleFeature road, double towerNodeDistance, GHPoint estmCentre, PointList pillarNodes) {
         EdgeIteratorState edge = graph.edge(fromTower, toTower);
 
-        // read the OSM id, should never be null
-        long id = getOSMId(road);
+        // Smooth the elevation before calculating the distance because the distance will be incorrect if calculated afterwards
+         // read the OSM id, should never be null
+        long wayOsmId = getOSMId(road);
+        
+        if (this.smoothElevation)
+            pillarNodes = GraphElevationSmoothing.smoothElevation(pillarNodes);
 
+        // sample points along long edges
+        if (this.longEdgeSamplingDistance < Double.MAX_VALUE && pillarNodes.is3D())
+            pillarNodes = EdgeSampling.sample(wayOsmId, pillarNodes, longEdgeSamplingDistance, distCalc, eleProvider);
+
+            // Distance will not  take into effect Elevation - need to fix!
+//        double towerNodeDistance = distCalc.calcDistance(pillarNodes);
+        
+       
+//        double towerNodeDistance = getWayLength(startTowerPnt, pillars, point);
+        
+//        double towerNodeDistance = pillarNodes.calcDistance(distCalc);
+        
         // Make a temporary ReaderWay object with the properties we need so we
         // can use the enocding manager
         // We (hopefully don't need the node structure on here as we're only
         // calling the flag
         // encoders, which don't use this...
-        ReaderWay way = new ReaderWay(id);
+            ReaderWay way = new ReaderWay(wayOsmId);
 
-        way.setTag("estimated_distance", distance);
+//        way.setTag("estimated_distance", towerNodeDistance);
         way.setTag("estimated_center", estmCentre);
 
         // read the highway type
@@ -368,18 +446,18 @@ public class OSMPostgisReader extends PostgisReader {
         if (edgeFlags.isEmpty())
             return;
 
-        edge.setDistance(distance);
+        edge.setDistance(towerNodeDistance);
         edge.setFlags(edgeFlags);
-        edge.setWayGeometry(pillarNodes);
-        encodingManager.applyWayTags(way, edge);
-
-        if (edgeAddedListeners.size() > 0) {
-            // check size first so we only allocate the iterator if we have
-            // listeners
-            for (EdgeAddedListener l : edgeAddedListeners) {
-                l.edgeAdded(way, edge);
-            }
+        
+        if (doSimplify && pillarNodes.size() > 2) {
+//            LOGGER.info("Simplifying");
+            simplifyAlgo.simplify(pillarNodes);
         }
+        
+        if (pillarNodes.size() > 2)
+            edge.setWayGeometry(pillarNodes);
+
+        encodingManager.applyWayTags(way, edge);
     }
 
     private long getOSMId(SimpleFeature road) {
@@ -396,8 +474,21 @@ public class OSMPostgisReader extends PostgisReader {
 
         return c;
     }
-
-    public void addListener(EdgeAddedListener l) {
-        edgeAddedListeners.add(l);
+    
+    protected double getElevation(double lat, double lng) {
+        return eleProvider.getEle(lat, lng);
     }
+    
+    @Override
+    public DataReader setLongEdgeSamplingDistance(double longEdgeSamplingDistance) {
+        this.longEdgeSamplingDistance = longEdgeSamplingDistance;
+        return this;
+    }
+    
+    @Override
+    public DataReader setWayPointElevationMaxDistance(double elevationWayPointMaxDistance) {
+        simplifyAlgo.setElevationMaxDistance(elevationWayPointMaxDistance);
+        return this;
+    }
+    
 }

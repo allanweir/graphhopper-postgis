@@ -29,5 +29,15 @@ public class Utils {
         }
         return new RuntimeException(e);
     }
+    
+    public static long[] LongsToPrimitive(Long[] list) {
+        // this way you create array of long
+        long[] arr2 = new long[list.length];
+        int i = 0;
+        for (Long e : list) {
+            arr2[i++] = e; // autoboxing does the job here
+        }
+        return arr2;
+    }
 
 }

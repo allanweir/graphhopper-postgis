@@ -23,19 +23,21 @@ import com.graphhopper.storage.Graph;
 import com.graphhopper.storage.GraphHopperStorage;
 import com.graphhopper.storage.GraphStorage;
 import com.graphhopper.storage.NodeAccess;
-import com.vividsolutions.jts.geom.Coordinate;
-import com.vividsolutions.jts.geom.LineString;
-import com.vividsolutions.jts.geom.MultiLineString;
 import org.geotools.data.DataStore;
 import org.geotools.data.DataStoreFinder;
 import org.geotools.data.FeatureSource;
-import org.geotools.feature.FeatureCollection;
-import org.geotools.feature.FeatureIterator;
+import org.geotools.data.Query;
+import org.geotools.data.simple.SimpleFeatureSource;
+import org.geotools.data.simple.SimpleFeatureCollection;
+import org.geotools.data.simple.SimpleFeatureIterator;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.filter.Filter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.LineString;
+import org.locationtech.jts.geom.MultiLineString;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -88,8 +90,7 @@ public abstract class PostgisReader implements DataReader {
      */
     protected abstract void finishReading();
 
-    protected FeatureIterator<SimpleFeature> getFeatureIterator(
-            DataStore dataStore, String tableName) {
+    protected SimpleFeatureIterator getFeatureIterator(DataStore dataStore, String tableName) {
 
         if (dataStore == null)
             throw new IllegalArgumentException("DataStore cannot be null for getFeatureIterator");
@@ -97,14 +98,14 @@ public abstract class PostgisReader implements DataReader {
         LOGGER.info("Getting the feature iterator for " + tableName);
 
         try {
-            FeatureSource<SimpleFeatureType, SimpleFeature> source =
-                    dataStore.getFeatureSource(tableName);
-
+            SimpleFeatureSource source = dataStore.getFeatureSource(tableName);
+            SimpleFeatureType inputType = dataStore.getSchema(tableName);
             Filter filter = getFilter(source);
-            FeatureCollection<SimpleFeatureType, SimpleFeature> collection = source.getFeatures(filter);
-
-            FeatureIterator<SimpleFeature> features = collection.features();
-            return features;
+            
+//            Query query = new Query(tableName, )
+            SimpleFeatureCollection collection = source.getFeatures(filter);
+            SimpleFeatureIterator featureIterator = collection.features();
+            return featureIterator;
 
         } catch (Exception e) {
             throw Utils.asUnchecked(e);
@@ -174,17 +175,24 @@ public abstract class PostgisReader implements DataReader {
      * Get longitude using the current long-lat order convention
      */
     protected double lng(Coordinate coordinate) {
-        return coordinate.getOrdinate(0);
+        return coordinate.getOrdinate(Coordinate.X);
     }
 
     /*
      * Get latitude using the current long-lat order convention
      */
     protected double lat(Coordinate coordinate) {
-        return coordinate.getOrdinate(1);
+        return coordinate.getOrdinate(Coordinate.Y);
+    }
+    
+    /*
+     * Get elevation using the current long-lat order convention
+     */
+    protected double ele(Coordinate coordinate) {
+        return coordinate.getOrdinate(Coordinate.Z);
     }
 
     protected void saveTowerPosition(int nodeId, Coordinate point) {
-        nodeAccess.setNode(nodeId, lat(point), lng(point));
+        nodeAccess.setNode(nodeId, lat(point), lng(point), ele(point));
     }
 }
