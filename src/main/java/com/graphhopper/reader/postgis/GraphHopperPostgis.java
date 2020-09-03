@@ -56,7 +56,7 @@ public class GraphHopperPostgis extends GraphHopperOSM {
 
     @Override
     protected DataReader createReader(GraphHopperStorage ghStorage) {
-        OSMPostgisReaderNew reader = new OSMPostgisReaderNew(ghStorage, postgisParams);
+        OSMPostgisReader reader = new OSMPostgisReader(ghStorage, postgisParams);
         return initDataReader(reader);
     }
     
