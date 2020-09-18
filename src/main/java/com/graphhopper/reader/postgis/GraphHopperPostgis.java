@@ -23,10 +23,7 @@ import com.graphhopper.reader.DataReader;
 import com.graphhopper.reader.osm.GraphHopperOSM;
 import com.graphhopper.storage.GraphHopperStorage;
 
-import java.util.HashMap;
 import java.util.Map;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Modified version of GraphHopper to optimize working with Postgis
@@ -36,30 +33,22 @@ import org.slf4j.LoggerFactory;
  */
 public class GraphHopperPostgis extends GraphHopperOSM {
     
-    private final Map<String, String> postgisParams = new HashMap<>();
+    private final Map<String, String> postgisParams;
     
     public GraphHopperPostgis(GraphHopperConfig configuration, JsonFeatureCollection landmarkSplittingFeatureCollection) {
         super.init(configuration);
         
         super.setDataReaderFile(configuration.getString("postgis.table", ""));
               
-        Integer port = configuration.getInt("postgis.port", 0);
-        postgisParams.put("dbtype", "postgis");
-        postgisParams.put("host", configuration.getString("postgis.host", ""));
-        postgisParams.put("port", port.toString());
-        postgisParams.put("schema", configuration.getString("postgis.schema", ""));
-        postgisParams.put("database", configuration.getString("postgis.database", ""));
-        postgisParams.put("user", configuration.getString("postgis.user", ""));
-        postgisParams.put("passwd", configuration.getString("postgis.password", ""));
-        postgisParams.put("tags_to_copy", configuration.getString("postgis.tags_to_copy", ""));
+        this.postgisParams = Utils.postGisParamsFromConfig(configuration);
     }
 
     @Override
     protected DataReader createReader(GraphHopperStorage ghStorage) {
         OSMPostgisReader reader = new OSMPostgisReader(ghStorage, postgisParams);
         return initDataReader(reader);
-    }
-    
+    }   
+        
 //    @Override
 //    protected DataReader importData() throws IOException {
 //        DataReader reader = createReader(ghStorage);

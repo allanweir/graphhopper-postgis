@@ -17,6 +17,10 @@
  */
 package com.graphhopper.reader.postgis;
 
+import com.graphhopper.GraphHopperConfig;
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * @author Phil
  * @author Robin Boldt
@@ -38,6 +42,20 @@ public class Utils {
             arr2[i++] = e; // autoboxing does the job here
         }
         return arr2;
+    }
+    
+    public static Map<String, String> postGisParamsFromConfig(GraphHopperConfig configuration) {
+        Map<String, String> postgisParams = new HashMap<>();
+        Integer port = configuration.getInt("postgis.port", 0);
+        postgisParams.put("dbtype", "postgis");
+        postgisParams.put("host", configuration.getString("postgis.host", ""));
+        postgisParams.put("port", port.toString());
+        postgisParams.put("schema", configuration.getString("postgis.schema", ""));
+        postgisParams.put("database", configuration.getString("postgis.database", ""));
+        postgisParams.put("user", configuration.getString("postgis.user", ""));
+        postgisParams.put("passwd", configuration.getString("postgis.password", ""));
+        postgisParams.put("tags_to_copy", configuration.getString("postgis.tags_to_copy", ""));
+        return postgisParams;
     }
 
 }
