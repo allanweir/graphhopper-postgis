@@ -410,6 +410,7 @@ public class OSMPostgisReader implements DataReader, TurnCostParser.ExternalInte
             element.setTag("hsi", node.getProperty("hsi").getValue());
             element.setTag("tci", node.getProperty("hsi").getValue());
             element.setTag("amb_rat", node.getProperty("amble_rating").getValue());
+            element.setTag("amb_con_rat", node.getProperty("amble_contra_rating").getValue());
 //            double hsi = node.getProperty("hsi").getValue();
             
             this.processElement(element, nodeFilter);
