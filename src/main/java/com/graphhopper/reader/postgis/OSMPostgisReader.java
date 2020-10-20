@@ -204,6 +204,8 @@ public class OSMPostgisReader implements DataReader, TurnCostParser.ExternalInte
         StopWatch sw2 = new StopWatch().start();
         writeOsmToGraph(dataStore);
         sw2.stop();
+        
+        dataStore.dispose();
 
         LOGGER.info("time pass1:" + (int) sw1.getSeconds() + "s, "
                 + "pass2:" + (int) sw2.getSeconds() + "s, "
