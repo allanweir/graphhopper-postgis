@@ -23,6 +23,8 @@ import com.graphhopper.storage.Graph;
 import com.graphhopper.storage.GraphHopperStorage;
 import com.graphhopper.storage.GraphStorage;
 import com.graphhopper.storage.NodeAccess;
+import java.io.IOException;
+import java.lang.ref.WeakReference;
 import org.geotools.data.DataStore;
 import org.geotools.data.DataStoreFinder;
 import org.geotools.data.FeatureSource;
@@ -42,6 +44,7 @@ import org.locationtech.jts.geom.MultiLineString;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.geotools.jdbc.JDBCDataStoreFactory;
 
 /**
  * PostgisReader takes care of reading a PostGIS table and writing it to a road network graph
@@ -60,7 +63,7 @@ public abstract class PostgisReader implements DataReader {
     protected final Graph graph;
     protected EncodingManager encodingManager;
 
-    private Map<String, String> postgisParams;
+    private final Map<String, String> postgisParams;
 
     public PostgisReader(GraphHopperStorage ghStorage,
                          Map<String, String> postgisParams) {
@@ -105,9 +108,10 @@ public abstract class PostgisReader implements DataReader {
 //            Query query = new Query(tableName, )
             SimpleFeatureCollection collection = source.getFeatures(filter);
             SimpleFeatureIterator featureIterator = collection.features();
+            
             return featureIterator;
 
-        } catch (Exception e) {
+        } catch (IOException e) {
             throw Utils.asUnchecked(e);
         }
     }

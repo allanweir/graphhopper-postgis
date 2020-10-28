@@ -44,8 +44,8 @@ public class Utils {
         return arr2;
     }
     
-    public static Map<String, String> postGisParamsFromConfig(GraphHopperConfig configuration) {
-        Map<String, String> postgisParams = new HashMap<>();
+    public static Map<String, Object> postGisParamsFromConfig(GraphHopperConfig configuration) {
+        Map<String, Object> postgisParams = new HashMap<>();
         Integer port = configuration.getInt("postgis.port", 0);
         postgisParams.put("dbtype", "postgis");
         postgisParams.put("host", configuration.getString("postgis.host", ""));

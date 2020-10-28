@@ -70,9 +70,11 @@ import java.util.*;
 import static com.graphhopper.util.Helper.*;
 import com.graphhopper.util.StopWatch;
 import java.io.IOException;
+import java.util.logging.Level;
 import org.geotools.data.DataStoreFinder;
 import org.geotools.data.FeatureSource;
 import org.geotools.feature.FeatureCollection;
+import org.geotools.jdbc.JDBCDataStoreFactory;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.filter.Filter;
 
@@ -134,9 +136,9 @@ public class OSMPostgisReader implements DataReader, TurnCostParser.ExternalInte
     private final IntsRef tempRelFlags;
     private final TurnCostStorage tcs;
     
-    private Map<String, String> postgisParams;
+    private Map<String, Object> postgisParams;
     
-    public OSMPostgisReader(GraphHopperStorage ghStorage, Map<String, String> postgisParams) {
+    public OSMPostgisReader(GraphHopperStorage ghStorage, Map<String, Object> postgisParams) {
         this.postgisParams = postgisParams;
         
         this.ghStorage = ghStorage;
@@ -160,6 +162,7 @@ public class OSMPostgisReader implements DataReader, TurnCostParser.ExternalInte
         try {
 //            LOGGER.info("Opening DB connection to " + this.postgisParams.get("dbtype") + " " + this.postgisParams.get("host") + ":" + this.postgisParams.get("port").toString() + " to database " + this.postgisParams.get("database") + " schema " + this.postgisParams.get("schema"));
             
+            this.postgisParams.put(JDBCDataStoreFactory.FETCHSIZE.key, 100);
             DataStore ds = DataStoreFinder.getDataStore(this.postgisParams);
             if (ds == null)
                 throw new IllegalArgumentException("Error Connecting to Database ");
@@ -202,7 +205,11 @@ public class OSMPostgisReader implements DataReader, TurnCostParser.ExternalInte
         sw1.stop();
 
         StopWatch sw2 = new StopWatch().start();
-        writeOsmToGraph(dataStore);
+        try {
+            writeOsmToGraph(dataStore);
+        } catch (InterruptedException ex) {
+            java.util.logging.Logger.getLogger(OSMPostgisReader.class.getName()).log(Level.SEVERE, null, ex);
+        }
         sw2.stop();
         
         dataStore.dispose();
@@ -368,13 +375,10 @@ public class OSMPostgisReader implements DataReader, TurnCostParser.ExternalInte
     /**
      * Creates the graph with edges and nodes from the specified osm file.
      */
-    private void writeOsmToGraph(DataStore dataStore) {
+    private void writeOsmToGraph(DataStore dataStore) throws InterruptedException {
         int tmp = (int) Math.max(getNodeMap().getSize() / 50, 100);
         LOGGER.info("creating graph. Found nodes (pillar+tower):" + nf(getNodeMap().getSize()) + ", " + Helper.getMemInfo());
         ghStorage.create(tmp);
-
-        long wayStart = -1;
-        long relationStart = -1;
         long counter = 1;
         
         FeatureIterator<SimpleFeature>nodes = getFeatureIterator(dataStore, "planet_osm_nodes_import");
@@ -391,6 +395,10 @@ public class OSMPostgisReader implements DataReader, TurnCostParser.ExternalInte
             this.processElement(element, nodeFilter);
             if (++counter % 200_000 == 0) {
                 LOGGER.info(nf(counter) + ", locs:" + nf(locations) + " (" + skippedLocations + ") " + Helper.getMemInfo());
+//                System.gc();
+            }
+            if (++counter % 10_000_000 == 0) {
+                System.gc();
             }
         }
         nodes.close();
@@ -398,7 +406,7 @@ public class OSMPostgisReader implements DataReader, TurnCostParser.ExternalInte
         counter = 1;
         nodes = getFeatureIterator(dataStore, "planet_osm_ways_import");
         while (nodes.hasNext()) {
-            SimpleFeature node = nodes.next();     
+            SimpleFeature node = nodes.next();
 
             ReaderWay element = new ReaderWay((long) node.getProperty("osm_id").getValue());
 //            LOGGER.info("ATTRIBUTES " + node.getProperty("tags").getValue().getClass());
@@ -409,7 +417,7 @@ public class OSMPostgisReader implements DataReader, TurnCostParser.ExternalInte
             element.setTags(tags);
             
 //            node.getProperty("hsi").
-            element.setTag("hsi", node.getProperty("hsi").getValue());
+//            element.setTag("hsi", node.getProperty("hsi").getValue());
             element.setTag("tci", node.getProperty("hsi").getValue());
             element.setTag("amb_rat", node.getProperty("amble_rating").getValue());
             element.setTag("amb_con_rat", node.getProperty("amble_contra_rating").getValue());
@@ -418,6 +426,10 @@ public class OSMPostgisReader implements DataReader, TurnCostParser.ExternalInte
             this.processElement(element, nodeFilter);
             if (++counter % 200_000 == 0) {
                 LOGGER.info(nf(counter) + ", locs:" + nf(locations) + " (" + skippedLocations + ") " + Helper.getMemInfo());
+//                System.gc();
+            }
+            if (++counter % 10_000_000 == 0) {
+                System.gc();
             }
         }
         nodes.close();
@@ -446,6 +458,10 @@ public class OSMPostgisReader implements DataReader, TurnCostParser.ExternalInte
             this.processElement(element, nodeFilter);
             if (++counter % 200_000 == 0) {
                 LOGGER.info(nf(counter) + ", locs:" + nf(locations) + " (" + skippedLocations + ") " + Helper.getMemInfo());
+//                System.gc();
+            }
+            if (++counter % 10_000_000 == 0) {
+                System.gc();
             }
         }
         nodes.close();
@@ -512,7 +528,7 @@ public class OSMPostgisReader implements DataReader, TurnCostParser.ExternalInte
 
             Filter filter = getFilter(source);
             FeatureCollection<SimpleFeatureType, SimpleFeature> collection = source.getFeatures(filter);
-
+            
             FeatureIterator<SimpleFeature> features = collection.features();
             return features;
 

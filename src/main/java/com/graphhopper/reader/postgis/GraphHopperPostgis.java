@@ -33,7 +33,7 @@ import java.util.Map;
  */
 public class GraphHopperPostgis extends GraphHopperOSM {
     
-    private final Map<String, String> postgisParams;
+    private final Map<String, Object> postgisParams;
     
     public GraphHopperPostgis(GraphHopperConfig configuration, JsonFeatureCollection landmarkSplittingFeatureCollection) {
         super.init(configuration);
