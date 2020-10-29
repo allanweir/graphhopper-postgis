@@ -252,6 +252,9 @@ public class OSMPostgisReader implements DataReader, TurnCostParser.ExternalInte
                     LOGGER.info(nf(tmpWayCounter) + " (preprocess), osmIdMap:" + nf(getNodeMap().getSize()) + " ("
                             + getNodeMap().getMemoryUsage() + "MB) " + Helper.getMemInfo());
                 }
+                if (++tmpWayCounter % 1_000_000 == 0) {
+                    System.gc();
+                }
             }
         }
         nodes.close();
@@ -286,6 +289,9 @@ public class OSMPostgisReader implements DataReader, TurnCostParser.ExternalInte
             if (++tmpRelationCounter % 100_000 == 0) {
                 LOGGER.info(nf(tmpRelationCounter) + " (preprocess), osmWayMap:" + nf(getRelFlagsMapSize())
                         + " " + Helper.getMemInfo());
+            }
+            if (++tmpRelationCounter % 1_000_000 == 0) {
+                System.gc();
             }
         }
         nodes.close();
@@ -397,7 +403,7 @@ public class OSMPostgisReader implements DataReader, TurnCostParser.ExternalInte
                 LOGGER.info(nf(counter) + ", locs:" + nf(locations) + " (" + skippedLocations + ") " + Helper.getMemInfo());
 //                System.gc();
             }
-            if (++counter % 10_000_000 == 0) {
+            if (++counter % 1_000_000 == 0) {
                 System.gc();
             }
         }
@@ -428,7 +434,7 @@ public class OSMPostgisReader implements DataReader, TurnCostParser.ExternalInte
                 LOGGER.info(nf(counter) + ", locs:" + nf(locations) + " (" + skippedLocations + ") " + Helper.getMemInfo());
 //                System.gc();
             }
-            if (++counter % 10_000_000 == 0) {
+            if (++counter % 1_000_000 == 0) {
                 System.gc();
             }
         }
@@ -460,7 +466,7 @@ public class OSMPostgisReader implements DataReader, TurnCostParser.ExternalInte
                 LOGGER.info(nf(counter) + ", locs:" + nf(locations) + " (" + skippedLocations + ") " + Helper.getMemInfo());
 //                System.gc();
             }
-            if (++counter % 10_000_000 == 0) {
+            if (++counter % 1_000_000 == 0) {
                 System.gc();
             }
         }
